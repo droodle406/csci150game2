@@ -162,31 +162,7 @@ print(print_shop_menu("Apple", 31, "Pear", 1.234))
 print(print_shop_menu("Egg", .23, "Bag of Oats", 12.34))
 print(print_shop_menu("Sword", 4000, "Ham", 22.25))
 
-
-def test_functions():
-    
-    """
-    Tests all above code
-
-    Parameters:
-    None
-
-    Returns:
-    None
-
-    Example:
-        test_functions()
-    """
-
-    print_welcome("Jeff", 20)
-    print_shop_menu("Sword", 4000, "Ham", 22.25)
-    purchase_item(Potion, 10, 50)
-    random_monster()
-
-    return None
-
-
-def battle(playerhp, gold, playerdamage):
+def battle(playerhp, gold, playerdamage, player_inventory, equipped):
 
     """
     Runs a battle between the player and a monster
@@ -206,30 +182,225 @@ def battle(playerhp, gold, playerdamage):
     monster_info = new_random_monster()
     
     while playerhp > 0 and monster_info["health"] > 0:
-        print(f"{monster_info['description']}\nThe {monster_info['name']} has {monster_info['health']} health and does {monster_info['power']} damage.")
-        print(f"You do {playerdamage} damage and you have {playerhp} health.")
+
+        if equipped:
+            totaldamage = playerdamage + equipped["damage"]
+        else:
+            totaldamage = playerdamage
         
-        user_action = input("What would you like to do? \n1) Fight \n2) Run\n")
+        print(f"{monster_info['description']}\nThe {monster_info['name']} has {monster_info['health']} health and does {monster_info['power']} damage.")
+        if equipped:
+            print(f"You do {totaldamage} damage, you have a {equipped['name']} equipped and you have {playerhp} health.")
+        else:
+            print(f"You do {totaldamage} damage and you have {playerhp} health.")
+        
+        user_action = input("What would you like to do? \n1) Fight \n2) Equip Item (Will use your turn!!)\n3) Use consumable\n4) Run\n")
         
         if user_action == "1":
-            monster_info["health"] -= playerdamage
-            playerhp -= monster_info["power"]
+            if equipped:
+                equipped["currentDurability"] -= 1
+                monster_info["health"] -= totaldamage
+                playerhp -= monster_info["power"]
+                if equipped["currentDurability"] == 0:
+                    print("Your sword shatters in your hand!")
+                    if equipped in player_inventory:
+                        player_inventory.remove(equipped)
+                    equipped = None
+            else:
+                monster_info["health"] -= totaldamage
+                playerhp -= monster_info["power"]
+
         elif user_action == "2":
+            item_type = input("What type of item would you like to equip? \nChoices: weapon")
+            if item_type == "weapon":
+                equipped = equip_item(player_inventory, "weapon")
+                    
+            else:
+                print("That is not a supported type, try again.")
+
+        elif user_action == "3":
+            printinv(player_inventory)
+            consumable_name = input("Which consumable would you like to use? ")
+
+            playerhp, monster_info["health"] = use_consumable(player_inventory, consumable_name, playerhp, monster_info)
+            
+        elif user_action == "4":
             print("You ran away.")
-            return playerhp, gold
+            return playerhp, gold, playerdamage, player_inventory, equipped
         else:
             print("Unrecognized command")
         
         if playerhp <= 0:
             print("Your character passed out.")
-            return playerhp, gold
+            return playerhp, gold, playerdamage, player_inventory, equipped
         elif monster_info["health"] <= 0:
             print(f"Congratulations! You have defeated the {monster_info['name']}!")
-            gold += 3
-            return playerhp, gold
+            gold += 15
+            return playerhp, gold, playerdamage, player_inventory, equipped
 
-    return playerhp, gold
+    return playerhp, gold, equipped
 
+def shoploop(gold, inventory):
+    """
+    Runs the shop interaction loop for the player.
 
-if __name__ == "__main__":
-    test_functions()
+    Parameters:
+    gold (int): The player's current gold amount
+    inventory (list): The player's current inventory list
+
+    Returns:
+    int: The player's updated gold amount after purchases
+
+    Example:
+        shoploop(100, [])
+        # Displays shop menu, prompts player to buy items, returns remaining gold
+    """
+    curgold = gold
+    print_shop_menu("Sword", 10, "Charm of Doom", 15)
+    choice = input("What would you like to buy?\n1) Sword\n2)Charm of Doom\n0) Exit shop")
+
+    if choice == "0":
+        print("Have a good day, come again soon!")
+        return gold
+
+    if choice == "1":
+        item_name = "1"
+        price = 10
+    elif choice == "2":
+        item_name = "2"
+        price = 15
+    else:
+        print("Invalid choice.")
+        return gold
+
+    qty = int(input(f"How many would you like to buy? "))
+
+    items_bought, gold = purchase_item(price, curgold, qty)
+
+    for _ in range(items_bought):
+        if item_name == "1":
+            inventory.append({
+                "name": "Sword",
+                "type": "weapon",
+                "maxDurability": 10,
+                "currentDurability": 10,
+                "damage": 5,
+                "equipped": False
+            })
+        elif item_name == "2":
+            inventory.append({
+                "name": "Pendant of Doom",
+                "type": "consumable",
+                "effect": "auto_defeat"
+            })
+
+    print(f"Bought!")
+    return gold
+
+def equip_item(inventory, item_type):
+    """
+    Prompts the player to select and equip an item of a given type.
+
+    Parameters:
+    inventory (list): The player's current inventory list
+    item_type (str): The type of item to equip (e.g. "weapon", "armor")
+
+    Returns:
+    dict or None: The selected item dictionary if one was chosen, otherwise None
+
+    Example:
+        equip_item(inventory, "weapon")
+        # Displays available weapons and returns the chosen one, or None
+    """
+    items = [item for item in inventory if item["type"] == item_type]
+
+    if not items:
+        print(f"You have no {item_type}s to equip.")
+        return None
+
+    print(f"Choose a {item_type} to equip:")
+    for i, item in enumerate(items, start=1):
+        print(f"{i}) {item['name']}")
+    print(f"{len(items)+1}) None")
+
+    choice = int(input("Enter choice: "))
+
+    if choice == len(items) + 1:
+        return None
+    
+    else:
+        return items[choice - 1]
+
+def use_consumable(player_inventory, item_name, playerhp, monster_info):
+    """
+    Uses a consumable item from the player's inventory during battle.
+
+    Parameters:
+    player_inventory (list): The player's current inventory list
+    item_name (str): Name of the consumable item to use
+    playerhp (int): The player's current health points
+    monster_info (dict): Dictionary containing the monster's current stats
+
+    Returns:
+    tuple: Updated (playerhp, monster health) after the consumable's effect is applied.
+           Returns a dict with playerhp and monster on failure (item not found).
+
+    Example:
+        use_consumable(inventory, "Pendant of Doom", 80, monster_info)
+        # Applies item effect, removes item from inventory, returns updated hp values
+    """
+    for item in player_inventory:
+        if item["name"].lower() == item_name.lower() and item["type"] == "consumable":
+
+            if item.get("effect") == "heal":
+                playerhp += item["heal"]
+                print(f"You drink a {item['name']} and heal {item['heal']} HP!")
+            
+            if item.get("effect") == "damage":
+                monster_info["health"] -= item["damage"]
+                print(f"You throw a {item['name']} and deal {item['damage']} damage!")
+
+            if item.get("effect") == "auto_defeat":
+                monster_info["health"] = 0
+                print(f"You use your charm, it lights up and instantly turns the monster and itself to dust!")
+
+            player_inventory.remove(item)
+            return playerhp, monster_info["health"]
+    
+    print("You don't have that consumable.")
+    return {"playerhp": playerhp, "monster": monster}
+
+def printinv(player_inventory):
+    """
+    Prints a formatted display of the player's inventory.
+
+    Parameters:
+    player_inventory (list): The player's current inventory list
+
+    Returns:
+    None
+
+    Example:
+        printinv(inventory)
+        # Displays each item with its type, stats, and relevant attributes
+    """
+    if not player_inventory:
+        print("Your inventory is empty.")
+        return
+    
+    print("\n--- Your Inventory ---")
+    for i, item in enumerate(player_inventory, start=1):
+        if item["type"] == "weapon":
+            print(f"{i}) {item['name']} (Weapon, Damage: {item['damage']}, Durability: {item['currentDurability']}/{item['maxDurability']})")
+
+        elif item["type"] == "consumable":
+            if item.get("effect") == "heal":
+                print(f"{i}) {item['name']} (Consumable, Heals: {item['heal']})")
+            elif item.get("effect") == "damage":
+                print(f"{i}) {item['name']} (Consumable, Damage: {item['damage']})")
+            elif item.get("effect") == "auto_defeat":
+                print(f"{i}) {item['name']} (Consumable), Instant Victory in Battle")
+        
+        else:
+            print(f"{i}) {item['name']} ({item['type']})")
+    print("-----------------------\n")

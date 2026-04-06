@@ -3,41 +3,49 @@ import gamefunctions
 playerhp = 300
 gold = 50
 playerdamage = 25
+player_inventory =  [
+                     {"name": "Charm of Home", "desc": "A charm given to you by your mother before leaving as a good luck token, has no effects.", "type": "trinket"},
+                    ]
+equipped = None
 
 def loop():
-
     """
     Main game loop to start off with
-
     Parameters:
     None
-
     Returns:
     None
-
     Example:
         loop()
     """
+    global playerhp, gold, playerdamage, player_inventory, equipped
+    running = True
 
-    global playerhp, gold, playerdamage
-    
-    user_input = input(f"You are in town.\n Current HP: {playerhp}, Current Gold: {gold}\nWhat would you like to do?\n1) Leave town (Fight Monster)\n2) Sleep (Restore HP for 5 gold)\n3) Quit")
+    while running == True:
+        user_input = input(f"You are in town.\n Current HP: {playerhp}, Current Gold: {gold}\nWhat would you like to do?\n1) Leave town (Fight Monster)\n2) Sleep (Restore HP for 5 gold)\n3) Go to the Store\n4) View Inventory\n5) Quit")
 
-    if user_input == "1":
-        playerhp, gold = gamefunctions.battle(playerhp, gold, playerdamage)
+        if user_input == "1":
+            playerhp, gold, playerdamage, player_inventory, equipped = gamefunctions.battle(playerhp, gold, playerdamage, player_inventory, equipped)
 
-    if user_input == "2":
-        print(f"You sleep at the local tavern. \n-5 Gold")
-        gold -= 5
-        playerhp += 20
-        loop()
+        elif user_input == "2":
+            print(f"You sleep at the local tavern. \n-5 Gold")
+            gold -= 5
+            playerhp += 20
 
-    if user_input == "3":
-        print(f"Thank you for playing, have a good day.")
+        elif user_input == "3":
+            gold = gamefunctions.shoploop(gold, player_inventory)
+            print("Gold now:", gold)
+            print("Inventory:", player_inventory)
 
-    else:
-        print("Invalid Input, Try again.")
-        loop()
+        elif user_input == "4":
+            gamefunctions.printinv(player_inventory)
+                
+        elif user_input == "5":
+            print(f"Thank you for playing, have a good day.")
+            running = False
+                
+        else:
+            print("Invalid input, try again.")
 
 if __name__ == "__main__":
     loop()

@@ -4,6 +4,8 @@ This module contains functions relating to gameplay technicalities."""
 
 
 import random
+import json
+import os
 
 def purchase_item(itemPrice, startingMoney, quantityToPurchase):
 
@@ -118,11 +120,6 @@ def print_welcome(name, width):
     return None
 
 
-print(print_welcome("Jeff", 20))
-print(print_welcome("Audrey", 30))
-print(print_welcome("Andrew", 55))
-
-
 def print_shop_menu(item1name, item1price, item2name, item2price):
 
     """
@@ -153,14 +150,9 @@ def print_shop_menu(item1name, item1price, item2name, item2price):
     item2leng = len(str(f"{item2:.2f}"))
     item2spaces2 = 8 - item2leng
 
-    print(f"/----------------------\ \n| {item1name}{' ' * item1spaces1}{' ' * item1spaces2}${item1:.2f}|\n| {item2name}{' ' * item2spaces1}{' ' * item2spaces2}${item2:.2f}|\n\----------------------/")
+    print(f"/----------------------\\ \n| {item1name}{' ' * item1spaces1}{' ' * item1spaces2}${item1:.2f}|\n| {item2name}{' ' * item2spaces1}{' ' * item2spaces2}${item2:.2f}|\n\\----------------------/")
 
     return None
-
-
-print(print_shop_menu("Apple", 31, "Pear", 1.234))
-print(print_shop_menu("Egg", .23, "Bag of Oats", 12.34))
-print(print_shop_menu("Sword", 4000, "Ham", 22.25))
 
 def battle(playerhp, gold, playerdamage, player_inventory, equipped):
 
@@ -219,10 +211,30 @@ def battle(playerhp, gold, playerdamage, player_inventory, equipped):
                 print("That is not a supported type, try again.")
 
         elif user_action == "3":
-            printinv(player_inventory)
-            consumable_name = input("Which consumable would you like to use? ")
+            consumables = [item for item in player_inventory if item["type"] == "consumable"]
 
-            playerhp, monster_info["health"] = use_consumable(player_inventory, consumable_name, playerhp, monster_info)
+            if not consumables:
+                print("You have no consumables.")
+            else:
+                print("\n--- Consumables ---")
+                for i, item in enumerate(consumables, start=1):
+                    print(f"{i}) {item['name']}")
+                print("-------------------")
+
+                choice = int(input("Choose a consumable: "))
+
+                if 1 <= choice <= len(consumables):
+                    selected_item = consumables[choice - 1]
+                    playerhp, monster_info["health"] = use_consumable(
+                        player_inventory,
+                        selected_item["name"],
+                        playerhp,
+                        monster_info
+                    )
+                else:
+                    print("Invalid choice.")
+
+            playerhp, monster_info["health"] = use_consumable(player_inventory, selected_item["name"], playerhp, monster_info)
             
         elif user_action == "4":
             print("You ran away.")
@@ -238,7 +250,7 @@ def battle(playerhp, gold, playerdamage, player_inventory, equipped):
             gold += 15
             return playerhp, gold, playerdamage, player_inventory, equipped
 
-    return playerhp, gold, equipped
+    return playerhp, gold, playerdamage, player_inventory, equipped
 
 def shoploop(gold, inventory):
     """
@@ -364,11 +376,15 @@ def use_consumable(player_inventory, item_name, playerhp, monster_info):
                 monster_info["health"] = 0
                 print(f"You use your charm, it lights up and instantly turns the monster and itself to dust!")
 
+            if item["type"] != "consumable":
+                print(f"{item['name']} is not a consumable.")
+                return playerhp, monster_info["health"]
+
             player_inventory.remove(item)
             return playerhp, monster_info["health"]
     
     print("You don't have that consumable.")
-    return {"playerhp": playerhp, "monster": monster}
+    return playerhp, monster_info["health"]
 
 def printinv(player_inventory):
     """
@@ -404,3 +420,46 @@ def printinv(player_inventory):
         else:
             print(f"{i}) {item['name']} ({item['type']})")
     print("-----------------------\n")
+
+def save_game(filename, playerhp, gold, playerdamage, inventory, equipped):
+    """
+    Saves the current game state to a file using JSON.
+
+    Parameters:
+    filename (str): Name of the save file
+    playerhp (int): Player health points
+    gold (int): Player gold amount
+    playerdamage (int): Player base damage
+    inventory (list): Player inventory list
+    equipped (dict or None): Currently equipped item
+
+    Returns:
+    None
+    """
+    save_data = {"playerhp": playerhp, "gold": gold, "playerdamage": playerdamage, "inventory": inventory, "equipped": equipped}
+
+    with open(filename, "w") as f:
+        json.dump(save_data, f, indent=4)
+
+    print("Game saved successfully!")
+
+def load_game(filename):
+    """
+    Loads a saved game state from a JSON file.
+
+    Parameters:
+    filename (str): Name of the save file to load
+
+    Returns:
+    tuple: (playerhp, gold, playerdamage, inventory, equipped) if file exists,
+           None if file is not found
+    """
+    if not os.path.exists(filename):
+        print("Save file not found.")
+        return None
+
+    with open(filename, "r") as f:
+        data = json.load(f)
+
+    print("Game loaded successfully!")
+    return data["playerhp"], data["gold"], data["playerdamage"], data["inventory"], data["equipped"]

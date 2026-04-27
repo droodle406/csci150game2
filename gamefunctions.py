@@ -238,17 +238,17 @@ def battle(playerhp, gold, playerdamage, player_inventory, equipped):
             
         elif user_action == "4":
             print("You ran away.")
-            return playerhp, gold, playerdamage, player_inventory, equipped
+            return playerhp, gold, playerdamage, player_inventory, equipped, "ran"
         else:
             print("Unrecognized command")
         
         if playerhp <= 0:
             print("Your character passed out.")
-            return playerhp, gold, playerdamage, player_inventory, equipped
+            return playerhp, gold, playerdamage, player_inventory, equipped, "ko"
         elif monster_info["health"] <= 0:
             print(f"Congratulations! You have defeated the {monster_info['name']}!")
             gold += 15
-            return playerhp, gold, playerdamage, player_inventory, equipped
+            return playerhp, gold, playerdamage, player_inventory, equipped, "end"
 
     return playerhp, gold, playerdamage, player_inventory, equipped
 
@@ -463,3 +463,136 @@ def load_game(filename):
 
     print("Game loaded successfully!")
     return data["playerhp"], data["gold"], data["playerdamage"], data["inventory"], data["equipped"]
+
+def move_player(map_state, direction):
+    """
+    Moves the player one tile in the specified direction and updates the map state.
+
+    Parameters:
+    map_state (dict): Dictionary containing map data such as player position,
+                      town position, monster position, and movement flags.
+    direction (str): Direction to move the player. Must be one of:
+                     'up', 'down', 'left', 'right'.
+
+    Returns:
+    str: Result of the movement:
+         "moved" – player moved successfully
+         "blocked" – movement was not possible (edge of map)
+         "returned_to_town" – player moved back onto the town square after leaving
+         "monster_encounter" – player moved onto the monster square
+
+    Example:
+        move_player(map_state, "up")
+    """
+    x, y = map_state["player_pos"]
+
+    if direction == "up" and y > 0:
+        y -= 1
+    elif direction == "down" and y < 9:
+        y += 1
+    elif direction == "left" and x > 0:
+        x -= 1
+    elif direction == "right" and x < 9:
+        x += 1
+    else:
+        return "blocked"
+
+    map_state["player_pos"] = [x, y]
+
+    if map_state["player_pos"] != map_state["town_pos"]:
+        map_state["has_left_town"] = True
+
+    if map_state["player_pos"] == map_state["town_pos"] and map_state["has_left_town"]:
+        return "returned_to_town"
+
+    if map_state["player_pos"] == map_state["monster_pos"]:
+        return "monster_encounter"
+
+    return "moved"
+
+def print_map(map_state):
+    """
+    Displays a text-based 10x10 map of the current game state.
+
+    Parameters:
+    map_state (dict): Dictionary containing map data including:
+                      player position, town position, and monster position.
+
+    Returns:
+    None
+
+    Notes:
+    - "P" represents the player
+    - "T" represents the town
+    - "M" represents the monster
+    - "." represents empty space
+
+    Example:
+        print_map(map_state)
+    """
+    for y in range(10):
+        row = ""
+        for x in range(10):
+            pos = [x, y]
+
+            if pos == map_state["player_pos"]:
+                row += "P"
+            elif pos == map_state["town_pos"]:
+                row += "T"
+            elif pos == map_state["monster_pos"]:
+                row += "M"
+            else:
+                row += "."
+        print(row)
+
+def map_interface(map_state):
+    """
+    Runs the map exploration interface, allowing the player to move around the map.
+
+    Parameters:
+    map_state (dict): Dictionary containing current map state including player,
+                      town, and monster positions.
+
+    Returns:
+    tuple:
+        (str, dict)
+        str:
+            "town" – player returned to town square
+            "monster" – player encountered a monster
+        dict:
+            Updated map_state after movement
+
+    Controls:
+        w – move up
+        s – move down
+        a – move left
+        d – move right
+
+    Example:
+        result, map_state = map_interface(map_state)
+    """
+    
+    while True:
+        print_map(map_state)
+
+        choice = input("Move with w/a/s/d: ").lower()
+
+        if choice == "w":
+            result = move_player(map_state, "up")
+        elif choice == "s":
+            result = move_player(map_state, "down")
+        elif choice == "a":
+            result = move_player(map_state, "left")
+        elif choice == "d":
+            result = move_player(map_state, "right")
+        else:
+            print("Invalid input.")
+            continue
+
+        if result == "blocked":
+            print("You cannot move that way.")
+        elif result == "returned_to_town":
+            return "town", map_state
+        elif result == "monster_encounter":
+            return "monster", map_state
+

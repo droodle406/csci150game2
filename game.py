@@ -1,11 +1,13 @@
 import gamefunctions
 import json
 import os
+import random
 
 playerhp = 300
 gold = 50
 playerdamage = 25
-player_inventory =  [{"name": "Charm of Home", "desc": "A charm given to you by your mother before leaving as a good luck token, has no effects.", "type": "trinket"},]
+map_state = {"player_pos": [0, 0],"town_pos": [0, 0],"monster_pos": [5, 5],"has_left_town": False}
+player_inventory = {"name": "Charm of Home", "desc": "A charm given to you by your mother before leaving as a good luck token, has no effects.", "type": "trinket"}
 equipped = None
 
 def loop():
@@ -18,7 +20,7 @@ def loop():
     Example:
         loop()
     """
-    global playerhp, gold, playerdamage, player_inventory, equipped
+    global playerhp, gold, playerdamage, player_inventory, equipped, map_state
     running = True
 
     while True:
@@ -50,12 +52,29 @@ def loop():
             print("Invalid input, try again.")
 
     while running:
-        user_input = input(f"You are in town.\n Current HP: {playerhp}, Current Gold: {gold}\nWhat would you like to do?\n1) Leave town (Fight Monster)\n2) Sleep (Restore HP for 5 gold)\n3) Go to the Store\n4) View Inventory\n5) Quit\n6) Save Game")
+        user_input = input(f"You are in town.\n Current HP: {playerhp}, Current Gold: {gold}\nWhat would you like to do?\n1) Leave town (Explore the Map!)\n2) Sleep (Restore HP for 5 gold)\n3) Go to the Store\n4) View Inventory\n5) Quit\n6) Save Game")
 
         if user_input == "1":
-            playerhp, gold, playerdamage, player_inventory, equipped = gamefunctions.battle(
-                playerhp, gold, playerdamage, player_inventory, equipped
-            )
+            result, map_state = gamefunctions.map_interface(map_state)
+
+            if result == "town":
+                print("You returned to town.")
+
+            elif result == "monster":
+                playerhp, gold, playerdamage, player_inventory, equipped, result = gamefunctions.battle(playerhp, gold, playerdamage, player_inventory, equipped)
+                if result == "ran":
+                    map_state["player_pos"] = map_state["town_pos"]
+                    map_state["has_left_town"] = False
+                    print("You flee back to town!")
+                if result == "ko":
+                    map_state["player_pos"] = map_state["town_pos"]
+                    map_state["has_left_town"] = False
+                    print("You were knocked unconcious and woke up in town!")
+                
+                map_state["monster_pos"] = [random.randint(0, 9), random.randint(0, 9)]
+                
+                while map_state["monster_pos"] == map_state["town_pos"] or map_state["monster_pos"] == map_state["player_pos"]:
+                    map_state["monster_pos"] = [random.randint(0, 9), random.randint(0, 9)] 
 
         elif user_input == "2":
             print("You sleep at the local tavern.\n-5 Gold")

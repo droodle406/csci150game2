@@ -2,12 +2,13 @@ import gamefunctions
 import json
 import os
 import random
+from wanderingmonster import wanderingmonster
 
 playerhp = 300
 gold = 50
 playerdamage = 25
-map_state = {"player_pos": [0, 0],"town_pos": [0, 0],"monster_pos": [5, 5],"has_left_town": False}
-player_inventory = {"name": "Charm of Home", "desc": "A charm given to you by your mother before leaving as a good luck token, has no effects.", "type": "trinket"}
+map_state = {"player_pos": [0, 0],"town_pos": [0, 0],"has_left_town": False,"monsters": [wanderingmonster.random_spawn(occupied=[],forbidden=[(0, 0)],grid_w=10,grid_h=10)]}
+player_inventory = [{"name": "Charm of Home", "desc": "A charm given to you by your mother before leaving as a good luck token, has no effects.", "type": "trinket"}, ]
 equipped = None
 
 def loop():
@@ -40,7 +41,7 @@ def loop():
                 loaded = gamefunctions.load_game(filename)
 
                 if loaded:
-                    playerhp, gold, playerdamage, player_inventory, equipped = loaded
+                    playerhp, gold, playerdamage, player_inventory, equipped, map_state = loaded
                     break
                 else:
                     print("Save file not found. Try again.")
@@ -62,19 +63,26 @@ def loop():
 
             elif result == "monster":
                 playerhp, gold, playerdamage, player_inventory, equipped, result = gamefunctions.battle(playerhp, gold, playerdamage, player_inventory, equipped)
+                map_state["monsters"] = [monster for monster in map_state["monsters"] if [monster.x, monster.y] != map_state["player_pos"]]
+
+                if len(map_state["monsters"]) == 0:
+                    for _ in range(2):
+                        occupied = [(monster.x, monster.y) for monster in map_state["monsters"]]
+                        forbidden = [tuple(map_state["player_pos"]),tuple(map_state["town_pos"])]
+
+                        new_monster = gamefunctions.wanderingmonster.random_spawn(occupied,forbidden,10,10)
+
+                        map_state["monsters"].append(new_monster)
+                        
                 if result == "ran":
                     map_state["player_pos"] = map_state["town_pos"]
                     map_state["has_left_town"] = False
                     print("You flee back to town!")
+                    
                 if result == "ko":
                     map_state["player_pos"] = map_state["town_pos"]
                     map_state["has_left_town"] = False
                     print("You were knocked unconcious and woke up in town!")
-                
-                map_state["monster_pos"] = [random.randint(0, 9), random.randint(0, 9)]
-                
-                while map_state["monster_pos"] == map_state["town_pos"] or map_state["monster_pos"] == map_state["player_pos"]:
-                    map_state["monster_pos"] = [random.randint(0, 9), random.randint(0, 9)] 
 
         elif user_input == "2":
             print("You sleep at the local tavern.\n-5 Gold")
@@ -95,7 +103,7 @@ def loop():
 
         elif user_input == "6":
             filename = input("Enter filename to save: ")
-            gamefunctions.save_game(filename, playerhp, gold, playerdamage, player_inventory, equipped)
+            gamefunctions.save_game(filename, playerhp, gold, playerdamage, player_inventory, equipped, map_state)
 
         else:
             print("Invalid input, try again.")

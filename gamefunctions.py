@@ -6,6 +6,7 @@ This module contains functions relating to gameplay technicalities."""
 import random
 import json
 import os
+from wanderingmonster import wanderingmonster
 
 def purchase_item(itemPrice, startingMoney, quantityToPurchase):
 
@@ -461,8 +462,12 @@ def load_game(filename):
     with open(filename, "r") as f:
         data = json.load(f)
 
+        map_state = data["map_state"]
+
+        map_state["monsters"] = [wanderingmonster.from_dict(monster_data) for monster_data in map_state["monsters"]]
+
     print("Game loaded successfully!")
-    return data["playerhp"], data["gold"], data["playerdamage"], data["inventory"], data["equipped"]
+    return data["playerhp"], data["gold"], data["playerdamage"], data["inventory"], data["equipped"], map_state
 
 def move_player(map_state, direction):
     """
@@ -505,8 +510,9 @@ def move_player(map_state, direction):
     if map_state["player_pos"] == map_state["town_pos"] and map_state["has_left_town"]:
         return "returned_to_town"
 
-    if map_state["player_pos"] == map_state["monster_pos"]:
-        return "monster_encounter"
+    for monster in map_state["monsters"]:
+        if map_state["player_pos"] == [monster.x, monster.y]:
+            return "monster_encounter"
 
     return "moved"
 
@@ -539,7 +545,7 @@ def print_map(map_state):
                 row += "P"
             elif pos == map_state["town_pos"]:
                 row += "T"
-            elif pos == map_state["monster_pos"]:
+            elif any(monster.x == x and monster.y == y for monster in map_state["monsters"]):
                 row += "M"
             else:
                 row += "."
@@ -595,4 +601,13 @@ def map_interface(map_state):
             return "town", map_state
         elif result == "monster_encounter":
             return "monster", map_state
+        elif result == "moved":
+            occupied = [(monster.x, monster.y) for monster in map_state["monsters"]]
+
+            forbidden = [tuple(map_state["player_pos"]),tuple(map_state["town_pos"])]
+
+        for monster in map_state["monsters"]:
+            other_monsters = [(m.x, m.y) for m in map_state["monsters"] if m != monster]
+
+        monster.move(other_monsters, forbidden, 10, 10)
 

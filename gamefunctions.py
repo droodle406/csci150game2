@@ -155,7 +155,7 @@ def print_shop_menu(item1name, item1price, item2name, item2price):
 
     return None
 
-def battle(playerhp, gold, playerdamage, player_inventory, equipped):
+def battle(playerhp, gold, playerdamage, player_inventory, equipped, partyactive, party):
 
     """
     Runs a battle between the player and a monster
@@ -176,6 +176,9 @@ def battle(playerhp, gold, playerdamage, player_inventory, equipped):
     
     while playerhp > 0 and monster_info["health"] > 0:
 
+        partydamage = (party*5)
+    
+
         if equipped:
             totaldamage = playerdamage + equipped["damage"]
         else:
@@ -186,10 +189,19 @@ def battle(playerhp, gold, playerdamage, player_inventory, equipped):
             print(f"You do {totaldamage} damage, you have a {equipped['name']} equipped and you have {playerhp} health.")
         else:
             print(f"You do {totaldamage} damage and you have {playerhp} health.")
+        if partyactive and party > 0:
+            print(f"Your men are fighting with you and will do {partydamage} damage each turn.")
+        elif partyactive == False:
+            print(f"Your men were not paid and refuse to fight.")
+        else:
+            print(f"You have no men to fight with you.")
         
         user_action = input("What would you like to do? \n1) Fight \n2) Equip Item (Will use your turn!!)\n3) Use consumable\n4) Run\n")
         
         if user_action == "1":
+            if partyactive and party > 0:
+                    print(f"Your men lash out, dealing {partydamage} damage!")
+                    monster_info["health"] -= partydamage
             if equipped:
                 equipped["currentDurability"] -= 1
                 monster_info["health"] -= totaldamage
@@ -204,15 +216,21 @@ def battle(playerhp, gold, playerdamage, player_inventory, equipped):
                 playerhp -= monster_info["power"]
 
         elif user_action == "2":
+            if partyactive and party > 0:
+                    print(f"Your men lash out, dealing {partydamage} damage!")
+                    monster_info["health"] -= partydamage
             item_type = input("What type of item would you like to equip? \nChoices: weapon")
             if item_type == "weapon":
                 equipped = equip_item(player_inventory, "weapon")
-                    
             else:
                 print("That is not a supported type, try again.")
 
         elif user_action == "3":
             consumables = [item for item in player_inventory if item["type"] == "consumable"]
+
+            if partyactive and party > 0:
+                    print(f"Your men lash out, dealing {partydamage} damage!")
+                    monster_info["health"] -= partydamage
 
             if not consumables:
                 print("You have no consumables.")
@@ -234,22 +252,21 @@ def battle(playerhp, gold, playerdamage, player_inventory, equipped):
                     )
                 else:
                     print("Invalid choice.")
-
-            playerhp, monster_info["health"] = use_consumable(player_inventory, selected_item["name"], playerhp, monster_info)
             
         elif user_action == "4":
             print("You ran away.")
-            return playerhp, gold, playerdamage, player_inventory, equipped, "ran"
+            return playerhp, gold, playerdamage, player_inventory, equipped, party, "ran"
         else:
             print("Unrecognized command")
         
         if playerhp <= 0:
-            print("Your character passed out.")
-            return playerhp, gold, playerdamage, player_inventory, equipped, "ko"
+            print("Your character passed out, and your men scatter.")
+            party = 0
+            return playerhp, gold, playerdamage, player_inventory, equipped, party, "ko"
         elif monster_info["health"] <= 0:
             print(f"Congratulations! You have defeated the {monster_info['name']}!")
             gold += 15
-            return playerhp, gold, playerdamage, player_inventory, equipped, "end"
+            return playerhp, gold, playerdamage, player_inventory, equipped, party, "end"
 
     return playerhp, gold, playerdamage, player_inventory, equipped
 
@@ -422,7 +439,7 @@ def printinv(player_inventory):
             print(f"{i}) {item['name']} ({item['type']})")
     print("-----------------------\n")
 
-def save_game(filename, playerhp, gold, playerdamage, inventory, equipped):
+def save_game(filename, playerhp, gold, playerdamage, inventory, equipped, map_state, party):
     """
     Saves the current game state to a file using JSON.
 
@@ -437,7 +454,9 @@ def save_game(filename, playerhp, gold, playerdamage, inventory, equipped):
     Returns:
     None
     """
-    save_data = {"playerhp": playerhp, "gold": gold, "playerdamage": playerdamage, "inventory": inventory, "equipped": equipped}
+    map_state_copy = map_state.copy()
+    map_state_copy["monsters"] = [monster.to_dict() for monster in map_state["monsters"]]
+    save_data = {"playerhp": playerhp, "gold": gold, "playerdamage": playerdamage, "inventory": inventory, "equipped": equipped, "map_state": map_state_copy, "party": party}
 
     with open(filename, "w") as f:
         json.dump(save_data, f, indent=4)
@@ -467,7 +486,7 @@ def load_game(filename):
         map_state["monsters"] = [wanderingmonster.from_dict(monster_data) for monster_data in map_state["monsters"]]
 
     print("Game loaded successfully!")
-    return data["playerhp"], data["gold"], data["playerdamage"], data["inventory"], data["equipped"], map_state
+    return data["playerhp"], data["gold"], data["playerdamage"], data["inventory"], data["equipped"], map_state, data["party"]
 
 def move_player(map_state, direction):
     """
@@ -610,4 +629,65 @@ def map_interface(map_state):
             other_monsters = [(m.x, m.y) for m in map_state["monsters"] if m != monster]
 
         monster.move(other_monsters, forbidden, 10, 10)
+
+def recruit(gold, wage, party):
+    """
+    Handles recruiting new party members in town.
+
+    Parameters:
+    gold (int): Current amount of gold the player has.
+    wage (int): Current total wage cost per turn.
+    party (int): Current number of men in the player's party.
+
+    Returns:
+    tuple or None:
+        (int, int):
+            Updated party size and wage if recruitment is successful.
+        None:
+            If the player declines recruitment or cannot afford it.
+
+    Behavior:
+        - Randomly generates 1–3 recruitable men.
+        - Each man costs 10 gold to recruit.
+        - Each man adds 1 gold to wage per turn.
+        - Prompts the player to accept or decline recruitment.
+
+    Example:
+        party, wage = recruit(gold, wage, party)
+    """
+    nummen = monster = (random.randint(1,3))
+    costmen = nummen*10
+    wage = nummen*1
+    startgold = gold
+    
+    if startgold >= costmen:
+        recruitinput = input(f"{nummen} men wander about town, ready to join you for {costmen} gold. You will have to pay {wage} gold in wages per turn after recruiting them.\n\nWhat would you like to do?\n1)Recruit them\n2) Leave")
+        if recruitinput == "1":
+            print(f"The men's eyes light up as you pay them, they will follow you.")
+            party += nummen
+            wage -= costmen
+            return party, wage
+        elif recruitinput == "2":
+            return party, wage
+        else:
+            print("Invalid Input, Try again.")
+    if startgold < costmen:
+        recruitinput = input(f"{nummen} men wander about town, ready to join you for {costmen} gold. You will have to pay {wage} gold in wages per turn after recruiting them. You cannot pay enough to recruit them, come back later.")
+        return party, wage
+
+def cut(party, wage):
+    if party > 0:
+        cutin = int(input(f"You have {party} men in your party, taking {wage} gold per turn.\nHow many men would you like to cut?"))
+        if cutin <= party:
+            party -= cutin
+            wage -= cutin*1
+            print(f"You tell {cutin} men to leave you, they listen and leave. You now have {party} men taking up {wage} wages.")
+            return party, wage
+        elif cutin > party:
+            print("You do not have {cutin} men in your party, try again.")
+        else:
+            print("Invalid Input, Try again.")
+    else:
+        print(f"Why are you here? You have no men!")
+        return party, wage
 
